@@ -2,8 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
-  <link rel="apple-touch-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b0f19">
+  
+  <!-- Configurações para iOS / Safari -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GymTracker">
+  
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>GymTracker - Organizador & Execução de Treinos</title>
   
@@ -97,16 +105,6 @@
   </style>
 </head>
 <body class="bg-gym-black text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-gym-neon selection:text-black">
-
-  <!-- Manifesto para Android e navegadores desktop -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0b0f19">
-
-<!-- Diretrizes específicas para iOS / Safari -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GymTracker">
-<link rel="apple-touch-icon" href="favicon.ico">  
 
   <!-- Top App Bar -->
   <header class="sticky top-0 z-40 bg-gym-black/90 backdrop-blur-md border-b border-gym-border/60 px-4 py-3">
@@ -355,7 +353,7 @@
     <span id="toastMessage">Treino salvo com sucesso!</span>
   </div>
 
-  <!-- Audio sintetizador via Web Audio API para Bipe de fim do descanso -->
+  <!-- Scripts e Lógica da Aplicação -->
   <script>
     // Sintetizador Web Audio API puro (sem precisar de arquivos externos de áudio)
     let audioCtx = null;
@@ -538,7 +536,6 @@
         .map(line => line.trim())
         .filter(line => line.length > 0 && !line.startsWith('//') && !line.startsWith('#'))
         .map((line, idx) => {
-          // Limpa marcadores como "1.", "-", "*", "•" caso o usuário cole com bullet points
           const cleanedText = line.replace(/^(\d+[\.\)]\s*|[\-\*•\–]\s*)/, '');
           const id = 'ex_' + Date.now() + '_' + idx;
           return {
@@ -673,7 +670,7 @@
             </div>
           </div>
 
-          <!-- Botão Check Gigante & Tátil para uso com uma mão -->
+          <!-- Botão Check Gigante & Tátil -->
           <div class="flex items-center gap-1.5 shrink-0">
             <button 
               data-id="${item.id}" 
@@ -713,12 +710,10 @@
       exercise.done = !exercise.done;
       saveData();
 
-      // Som tátil rápido
       if (exercise.done) {
         playBeep(520, 0.08, 'sine');
         showToast('Exercício concluído! Descanse.', 'ph-check-circle', 'text-gym-neon');
         
-        // Iniciar timer automaticamente para facilitar se não estiver rodando
         if (!timerIsRunning && timerRemainingSeconds <= 0) {
           timerRemainingSeconds = timerTotalSeconds;
         }
@@ -728,7 +723,6 @@
 
       renderApp();
 
-      // Rolar suavemente até o próximo exercício pendente
       if (exercise.done) {
         setTimeout(() => {
           scrollToNextPending();
@@ -776,7 +770,6 @@
           timerRemainingSeconds--;
           updateTimerDisplay();
 
-          // Bipe suave nos últimos 3 segundos
           if (timerRemainingSeconds > 0 && timerRemainingSeconds <= 3) {
             playBeep(440, 0.08, 'triangle');
           }
@@ -868,7 +861,7 @@
       if (current) openWorkoutModal(current);
     });
 
-    // Colar da Área de Transferência (Clipboard API com fallback seguro)
+    // Colar da Área de Transferência
     btnPasteClipboard.addEventListener('click', async () => {
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
@@ -880,7 +873,7 @@
           }
         }
       } catch (err) {
-        // Ignora ou pede foco manual
+        // Fallback para permissões restritas
       }
       inputWorkoutRawText.focus();
       showToast('Pressione e segure na caixa para colar', 'ph-cursor-text', 'text-amber-400');
@@ -894,7 +887,6 @@
       const rawText = inputWorkoutRawText.value;
 
       if (id) {
-        // Editando existente: preserva status 'done' dos exercícios com mesmo texto
         const current = workouts.find(w => w.id === id);
         const doneMap = {};
         if (current) {
@@ -909,7 +901,6 @@
         }
         showToast('Treino atualizado com sucesso!');
       } else {
-        // Criando novo
         const newId = 'workout_' + Date.now();
         const exercises = parseRawTextToExercises(rawText);
         workouts.push({
@@ -931,7 +922,6 @@
       const current = getActiveWorkout();
       if (!current) return;
 
-      // Mensagem visual rápida de confirmação sem alert()
       const confirmDelete = window.confirm(`Deseja realmente apagar o treino "${current.name}"?`);
       if (confirmDelete) {
         workouts = workouts.filter(w => w.id !== current.id);
@@ -974,6 +964,15 @@
       updateTimerDisplay();
       renderApp();
     });
+
+    // Ativação do PWA (Service Worker)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+          console.warn('Service worker falhou:', err);
+        });
+      });
+    }
   </script>
 </body>
 </html>
