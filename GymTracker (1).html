@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>GymTracker - Organizador & Execução de Treinos</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Google Fonts Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            display: ['"Outfit"', 'sans-serif'],
+          },
+          colors: {
+            gym: {
+              black: '#090a0f',
+              dark: '#12141c',
+              card: '#181b26',
+              cardHover: '#1f2333',
+              border: '#282d3f',
+              neon: '#22c55e',
+              neonHover: '#16a34a',
+              cyan: '#06b6d4',
+              accent: '#3b82f6',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Estilos personalizados para experiência mobile tátil */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    
+    /* Scrollbar sutil */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090a0f;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #282d3f;
+      border-radius: 9999px;
+    }
+
+    .pulse-neon {
+      box-shadow: 0 0 20px -3px rgba(34, 197, 94, 0.45);
+    }
+    .pulse-cyan {
+      box-shadow: 0 0 20px -3px rgba(6, 182, 212, 0.45);
+    }
+    
+    /* Animação suave para itens marcados */
+    .exercise-item {
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .exercise-done {
+      opacity: 0.55;
+      background: rgba(24, 27, 38, 0.4) !important;
+      border-color: rgba(40, 45, 63, 0.5) !important;
+    }
+    .exercise-active {
+      border-color: #22c55e !important;
+      box-shadow: 0 0 0 1px #22c55e, 0 8px 20px -6px rgba(34, 197, 94, 0.25);
+      transform: scale(1.01);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+  </style>
+</head>
+<body class="bg-gym-black text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-gym-neon selection:text-black">
+
+  <!-- Top App Bar -->
+  <header class="sticky top-0 z-40 bg-gym-black/90 backdrop-blur-md border-b border-gym-border/60 px-4 py-3">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-gym-neon to-gym-cyan flex items-center justify-center text-gym-black shadow-lg shadow-gym-neon/20 font-black">
+          <i class="ph-bold ph-barbell text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-display font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+            PUMP<span class="text-gym-neon">FLOW</span>
+          </h1>
+          <p class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Seu Treino Simples & Rápido</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="btnOpenNewWorkoutModal" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gym-card hover:bg-gym-cardHover border border-gym-border text-xs font-semibold text-gym-neon transition active:scale-95">
+          <i class="ph-bold ph-plus text-sm"></i>
+          <span>Novo Treino</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container Principal -->
+  <main class="flex-1 max-w-md w-full mx-auto p-4 pb-28 flex flex-col">
+
+    <!-- Seletor / Tabs de Treinos -->
+    <section class="mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs uppercase font-bold text-slate-400 tracking-wider">Treinos Cadastrados</span>
+        <span id="workoutCountBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-gym-card text-slate-400 border border-gym-border">0 treinos</span>
+      </div>
+      <div id="workoutsTabsContainer" class="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x">
+        <!-- Renderizado dinamicamente -->
+      </div>
+    </section>
+
+    <!-- Workout Dashboard / Active View -->
+    <section id="activeWorkoutView" class="flex-1 flex flex-col">
+      <!-- Cabeçalho do Treino Selecionado -->
+      <div class="bg-gym-card border border-gym-border rounded-2xl p-4 mb-4 shadow-xl relative overflow-hidden">
+        <div class="absolute -right-10 -top-10 w-32 h-32 bg-gym-neon/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div class="flex items-start justify-between gap-3 mb-3 relative z-10">
+          <div>
+            <h2 id="activeWorkoutTitle" class="text-xl font-display font-bold text-white tracking-tight">Carregando...</h2>
+            <p id="activeWorkoutDesc" class="text-xs text-slate-400 mt-0.5">Selecione ou adicione um treino acima</p>
+          </div>
+          
+          <div class="flex items-center gap-1">
+            <button id="btnQuickImportModal" title="Adicionar / Colar exercícios" class="w-8 h-8 rounded-lg bg-gym-border/40 hover:bg-gym-border text-slate-300 flex items-center justify-center transition active:scale-95">
+              <i class="ph-bold ph-pencil-simple text-base"></i>
+            </button>
+            <button id="btnDeleteWorkout" title="Excluir treino" class="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 flex items-center justify-center transition active:scale-95">
+              <i class="ph-bold ph-trash text-base"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Barra de Progresso do Treino -->
+        <div class="space-y-1.5 relative z-10">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-400 font-medium flex items-center gap-1.5">
+              <i class="ph-fill ph-check-circle text-gym-neon"></i>
+              Progresso do Treino
+            </span>
+            <span id="progressText" class="font-bold text-gym-neon">0 / 0 (0%)</span>
+          </div>
+          <div class="w-full bg-gym-black/70 rounded-full h-2.5 overflow-hidden border border-gym-border/50 p-0.5">
+            <div id="progressBar" class="bg-gradient-to-r from-gym-cyan to-gym-neon h-full rounded-full transition-all duration-300 ease-out" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Ações Rápidas da Barra -->
+        <div class="flex items-center gap-2 mt-3 pt-3 border-t border-gym-border/40">
+          <button id="btnResetAll" class="flex-1 py-1.5 px-3 rounded-lg bg-gym-black/60 hover:bg-gym-black text-slate-300 hover:text-white border border-gym-border/70 text-xs font-semibold flex items-center justify-center gap-1.5 transition active:scale-95">
+            <i class="ph-bold ph-arrow-counter-clockwise"></i>
+            <span>Desmarcar Todos</span>
+          </button>
+          <button id="btnFinishWorkout" class="flex-1 py-1.5 px-3 rounded-lg bg-gym-neon/15 hover:bg-gym-neon/25 text-gym-neon border border-gym-neon/40 text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95">
+            <i class="ph-bold ph-trophy"></i>
+            <span>Concluir Treino</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Cronômetro de Descanso Flutuante / Compacto -->
+      <div id="restTimerCard" class="bg-gym-card/80 border border-gym-border rounded-xl p-3 mb-4 backdrop-blur flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div id="timerIconBox" class="w-10 h-10 rounded-xl bg-gym-cyan/15 text-gym-cyan border border-gym-cyan/30 flex items-center justify-center text-lg">
+            <i class="ph-bold ph-timer"></i>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Descanso Séries</div>
+            <div id="timerDisplay" class="font-mono font-bold text-lg text-white">00:00</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button data-time="45" class="btn-preset-time px-2.5 py-1.5 rounded-lg bg-gym-black border border-gym-border text-xs font-semibold text-slate-300 hover:text-white transition active:scale-95">45s</button>
+          <button data-time="60" class="btn-preset-time px-2.5 py-1.5 rounded-lg bg-gym-black border border-gym-border text-xs font-semibold text-slate-300 hover:text-white transition active:scale-95">60s</button>
+          <button data-time="90" class="btn-preset-time px-2.5 py-1.5 rounded-lg bg-gym-black border border-gym-border text-xs font-semibold text-slate-300 hover:text-white transition active:scale-95">90s</button>
+          <button id="btnToggleTimer" class="w-9 h-9 rounded-lg bg-gym-cyan text-black font-bold flex items-center justify-center text-base hover:bg-cyan-400 transition active:scale-95 shadow-md shadow-cyan-500/20">
+            <i id="timerPlayPauseIcon" class="ph-fill ph-play"></i>
+          </button>
+          <button id="btnResetTimer" class="w-9 h-9 rounded-lg bg-gym-black border border-gym-border text-slate-400 hover:text-white flex items-center justify-center text-base transition active:scale-95">
+            <i class="ph-bold ph-stop"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Exercícios -->
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-xs uppercase font-bold text-slate-400 tracking-wider">Lista de Exercícios</h3>
+        <span class="text-[11px] text-slate-500">Toque no check após concluir</span>
+      </div>
+
+      <div id="exercisesListContainer" class="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
+        <!-- Renderizado dinamicamente -->
+      </div>
+
+      <!-- Estado Vazio / Sem Exercícios -->
+      <div id="emptyExercisesState" class="hidden flex-col items-center justify-center p-8 text-center bg-gym-card/40 border border-dashed border-gym-border rounded-2xl my-auto">
+        <div class="w-14 h-14 rounded-full bg-gym-border/40 flex items-center justify-center text-slate-400 text-2xl mb-3">
+          <i class="ph-duotone ph-clipboard-text"></i>
+        </div>
+        <h4 class="font-bold text-white text-base">Nenhum exercício neste treino</h4>
+        <p class="text-xs text-slate-400 mt-1 max-w-[240px]">Cole seus exercícios em texto ou digite a lista para começar.</p>
+        <button id="btnEmptyAdd" class="mt-4 px-4 py-2 bg-gym-neon text-gym-black font-bold rounded-xl text-xs flex items-center gap-2 hover:bg-gym-neonHover transition shadow-lg shadow-gym-neon/20">
+          <i class="ph-bold ph-pencil-simple text-sm"></i>
+          <span>Colar Lista de Exercícios</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Empty Global State (Nenhum treino criado) -->
+    <div id="emptyGlobalState" class="hidden flex-col items-center justify-center p-8 text-center my-auto">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-gym-neon/20 to-gym-cyan/20 border border-gym-neon/30 flex items-center justify-center text-gym-neon text-3xl mb-4">
+        <i class="ph-duotone ph-barbell"></i>
+      </div>
+      <h3 class="font-display font-extrabold text-xl text-white">Pronto para treinar?</h3>
+      <p class="text-xs text-slate-400 mt-1.5 max-w-xs mb-6">
+        Crie seu primeiro treino (Treino A, B, C...) e cole seus exercícios em formato de texto para começar com 1 toque.
+      </p>
+      <button id="btnCreateFirstWorkout" class="w-full py-3.5 px-6 rounded-xl bg-gym-neon text-gym-black font-extrabold text-sm flex items-center justify-center gap-2 hover:bg-gym-neonHover transition pulse-neon">
+        <i class="ph-bold ph-plus-circle text-lg"></i>
+        <span>Criar Meu Primeiro Treino</span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Barra Fixa Inferior com Dica de Foco -->
+  <footer class="fixed bottom-0 left-0 right-0 bg-gym-black/95 backdrop-blur-lg border-t border-gym-border/70 p-3 z-30">
+    <div class="max-w-md mx-auto flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2 text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-gym-neon animate-ping"></span>
+        <span id="nextExerciseHint" class="truncate max-w-[240px] font-medium text-slate-300">Próximo: -</span>
+      </div>
+      <button id="btnScrollToNext" class="px-2.5 py-1.5 rounded-lg bg-gym-card hover:bg-gym-cardHover border border-gym-border text-[11px] font-bold text-gym-neon flex items-center gap-1 active:scale-95">
+        <span>Focar</span>
+        <i class="ph-bold ph-caret-down"></i>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Modal: Criar / Importar / Editar Treino -->
+  <div id="modalWorkoutEditor" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-gym-card border border-gym-border w-full max-w-md rounded-t-3xl sm:rounded-2xl p-5 shadow-2xl flex flex-col max-h-[90vh]">
+      
+      <!-- Cabeçalho Modal -->
+      <div class="flex items-center justify-between pb-3 border-b border-gym-border/60">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-gym-neon/15 text-gym-neon flex items-center justify-center font-bold">
+            <i class="ph-bold ph-note-pencil text-lg"></i>
+          </div>
+          <div>
+            <h3 id="modalTitle" class="font-display font-bold text-base text-white">Configurar Treino</h3>
+            <p class="text-[11px] text-slate-400">Cole a lista em texto direto do WhatsApp ou Bloco de Notas</p>
+          </div>
+        </div>
+        <button id="btnCloseModal" class="w-8 h-8 rounded-lg bg-gym-black border border-gym-border text-slate-400 hover:text-white flex items-center justify-center">
+          <i class="ph-bold ph-x text-base"></i>
+        </button>
+      </div>
+
+      <!-- Corpo Modal -->
+      <form id="formWorkout" class="mt-4 flex-1 overflow-y-auto space-y-4 pr-1">
+        <input type="hidden" id="inputWorkoutId" value="" />
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+            Nome do Treino
+          </label>
+          <input 
+            type="text" 
+            id="inputWorkoutName" 
+            required 
+            placeholder="Ex: Treino A - Peito, Ombro e Tríceps"
+            class="w-full bg-gym-black border border-gym-border rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-gym-neon focus:ring-1 focus:ring-gym-neon transition"
+          />
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+              <span>Exercícios (1 por linha)</span>
+              <span class="text-[10px] text-gym-cyan font-normal lowercase bg-gym-cyan/10 px-1.5 py-0.5 rounded">auto conversão</span>
+            </label>
+            <button type="button" id="btnPasteClipboard" class="text-[11px] text-gym-cyan hover:underline flex items-center gap-1">
+              <i class="ph-bold ph-clipboard"></i> Colar do celular
+            </button>
+          </div>
+          <textarea 
+            id="inputWorkoutRawText" 
+            rows="8" 
+            required
+            placeholder="Cole sua lista aqui:&#10;Supino Reto 4x10&#10;Supino Inclinado com Halteres 3x12&#10;Crucifixo Máquina 3x15&#10;Desenvolvimento Militar 4x10&#10;Elevação Lateral 4x12&#10;Tríceps Corda 4x12"
+            class="w-full bg-gym-black border border-gym-border rounded-xl p-3 text-xs sm:text-sm font-mono text-white placeholder-slate-500 focus:outline-none focus:border-gym-neon focus:ring-1 focus:ring-gym-neon transition"
+          ></textarea>
+          <p class="text-[11px] text-slate-500 mt-1">
+            Dica: Cada linha vira um item com checkbox tátil. Você pode colocar séries e repetições junto no nome!
+          </p>
+        </div>
+
+        <!-- Botões -->
+        <div class="pt-2 flex items-center gap-2">
+          <button type="button" id="btnCancelModal" class="flex-1 py-3 rounded-xl bg-gym-black border border-gym-border text-xs font-bold text-slate-300 hover:text-white transition">
+            Cancelar
+          </button>
+          <button type="submit" class="flex-1 py-3 rounded-xl bg-gym-neon text-gym-black text-xs font-extrabold hover:bg-gym-neonHover transition pulse-neon flex items-center justify-center gap-1.5">
+            <i class="ph-bold ph-check text-base"></i>
+            <span>Salvar Treino</span>
+          </button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- Toast de Notificação -->
+  <div id="toast" class="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 bg-gym-card border border-gym-border px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 text-xs font-semibold text-white pointer-events-none opacity-0 translate-y-3 transition-all duration-300">
+    <i id="toastIcon" class="ph-fill ph-check-circle text-gym-neon text-base"></i>
+    <span id="toastMessage">Treino salvo com sucesso!</span>
+  </div>
+
+  <!-- Audio sintetizador via Web Audio API para Bipe de fim do descanso -->
+  <script>
+    // Sintetizador Web Audio API puro (sem precisar de arquivos externos de áudio)
+    let audioCtx = null;
+    function playBeep(frequency = 880, duration = 0.15, type = 'sine') {
+      try {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio not available', e);
+      }
+    }
+
+    function playAlarmSequence() {
+      playBeep(600, 0.12, 'square');
+      setTimeout(() => playBeep(800, 0.12, 'square'), 140);
+      setTimeout(() => playBeep(1200, 0.35, 'square'), 280);
+      if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 400]);
+      }
+    }
+
+    // Gerenciador de Estado
+    const STORAGE_KEY = 'pumpflow_workouts_v1';
+    const ACTIVE_WORKOUT_KEY = 'pumpflow_active_id';
+
+    let workouts = [];
+    let activeWorkoutId = null;
+
+    // Timer State
+    let timerInterval = null;
+    let timerTotalSeconds = 60;
+    let timerRemainingSeconds = 60;
+    let timerIsRunning = false;
+
+    // Exemplos iniciais caso não haja dados
+    const defaultWorkouts = [
+      {
+        id: 'workout_a',
+        name: 'Treino A - Peito & Tríceps',
+        exercises: [
+          { id: 'ex_1', text: 'Supino Reto com Barra - 4x 8 a 10', done: false },
+          { id: 'ex_2', text: 'Supino Inclinado com Halteres - 3x 10 a 12', done: false },
+          { id: 'ex_3', text: 'Crucifixo Máquina (Peck Deck) - 3x 12', done: false },
+          { id: 'ex_4', text: 'Crossover Polia Média - 3x 15', done: false },
+          { id: 'ex_5', text: 'Tríceps Polia Corda - 4x 12', done: false },
+          { id: 'ex_6', text: 'Tríceps Testa com Barra W - 3x 10', done: false }
+        ]
+      },
+      {
+        id: 'workout_b',
+        name: 'Treino B - Costas & Bíceps',
+        exercises: [
+          { id: 'ex_7', text: 'Puxada Frontal Aberta - 4x 10', done: false },
+          { id: 'ex_8', text: 'Remada Baixa Triângulo - 4x 10 a 12', done: false },
+          { id: 'ex_9', text: 'Remada Curvada com Barra - 3x 8 a 10', done: false },
+          { id: 'ex_10', text: 'Crucifixo Invertido Halteres - 3x 12', done: false },
+          { id: 'ex_11', text: 'Rosca Direta Barra W - 4x 10', done: false },
+          { id: 'ex_12', text: 'Rosca Martelo Alternada - 3x 12', done: false }
+        ]
+      },
+      {
+        id: 'workout_c',
+        name: 'Treino C - Pernas Completo',
+        exercises: [
+          { id: 'ex_13', text: 'Agachamento Livre ou Smith - 4x 8 a 10', done: false },
+          { id: 'ex_14', text: 'Leg Press 45° - 4x 10 a 12', done: false },
+          { id: 'ex_15', text: 'Cadeira Extensora - 3x 12 (Drop na última)', done: false },
+          { id: 'ex_16', text: 'Mesa Flexora - 4x 10 a 12', done: false },
+          { id: 'ex_17', text: 'Stiff com Halteres - 3x 10', done: false },
+          { id: 'ex_18', text: 'Panturrilha em Pé - 4x 15 a 20', done: false }
+        ]
+      }
+    ];
+
+    // Elementos DOM
+    const workoutsTabsContainer = document.getElementById('workoutsTabsContainer');
+    const workoutCountBadge = document.getElementById('workoutCountBadge');
+    const activeWorkoutView = document.getElementById('activeWorkoutView');
+    const emptyGlobalState = document.getElementById('emptyGlobalState');
+    const activeWorkoutTitle = document.getElementById('activeWorkoutTitle');
+    const activeWorkoutDesc = document.getElementById('activeWorkoutDesc');
+    const exercisesListContainer = document.getElementById('exercisesListContainer');
+    const emptyExercisesState = document.getElementById('emptyExercisesState');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const nextExerciseHint = document.getElementById('nextExerciseHint');
+
+    // Modais e inputs
+    const modalWorkoutEditor = document.getElementById('modalWorkoutEditor');
+    const formWorkout = document.getElementById('formWorkout');
+    const inputWorkoutId = document.getElementById('inputWorkoutId');
+    const inputWorkoutName = document.getElementById('inputWorkoutName');
+    const inputWorkoutRawText = document.getElementById('inputWorkoutRawText');
+    const modalTitle = document.getElementById('modalTitle');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const btnCancelModal = document.getElementById('btnCancelModal');
+    const btnOpenNewWorkoutModal = document.getElementById('btnOpenNewWorkoutModal');
+    const btnQuickImportModal = document.getElementById('btnQuickImportModal');
+    const btnDeleteWorkout = document.getElementById('btnDeleteWorkout');
+    const btnResetAll = document.getElementById('btnResetAll');
+    const btnFinishWorkout = document.getElementById('btnFinishWorkout');
+    const btnEmptyAdd = document.getElementById('btnEmptyAdd');
+    const btnCreateFirstWorkout = document.getElementById('btnCreateFirstWorkout');
+    const btnPasteClipboard = document.getElementById('btnPasteClipboard');
+    const btnScrollToNext = document.getElementById('btnScrollToNext');
+
+    // Timer DOM
+    const timerDisplay = document.getElementById('timerDisplay');
+    const btnToggleTimer = document.getElementById('btnToggleTimer');
+    const timerPlayPauseIcon = document.getElementById('timerPlayPauseIcon');
+    const btnResetTimer = document.getElementById('btnResetTimer');
+    const presetTimerButtons = document.querySelectorAll('.btn-preset-time');
+
+    // Toast
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toastMessage');
+    const toastIcon = document.getElementById('toastIcon');
+
+    function showToast(msg, icon = 'ph-check-circle', colorClass = 'text-gym-neon') {
+      toastMessage.textContent = msg;
+      toastIcon.className = `ph-fill ${icon} ${colorClass} text-base`;
+      toast.classList.remove('opacity-0', 'translate-y-3');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-3');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2500);
+    }
+
+    // Inicialização do LocalStorage
+    function loadData() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          workouts = JSON.parse(saved);
+        } catch (e) {
+          workouts = defaultWorkouts;
+        }
+      } else {
+        workouts = defaultWorkouts;
+        saveData();
+      }
+
+      const savedActiveId = localStorage.getItem(ACTIVE_WORKOUT_KEY);
+      if (savedActiveId && workouts.some(w => w.id === savedActiveId)) {
+        activeWorkoutId = savedActiveId;
+      } else if (workouts.length > 0) {
+        activeWorkoutId = workouts[0].id;
+      } else {
+        activeWorkoutId = null;
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(workouts));
+      if (activeWorkoutId) {
+        localStorage.setItem(ACTIVE_WORKOUT_KEY, activeWorkoutId);
+      }
+    }
+
+    // Utilitário para quebrar texto colado em lista de exercícios
+    function parseRawTextToExercises(text, existingDoneMap = {}) {
+      if (!text) return [];
+      return text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0 && !line.startsWith('//') && !line.startsWith('#'))
+        .map((line, idx) => {
+          // Limpa marcadores como "1.", "-", "*", "•" caso o usuário cole com bullet points
+          const cleanedText = line.replace(/^(\d+[\.\)]\s*|[\-\*•\–]\s*)/, '');
+          const id = 'ex_' + Date.now() + '_' + idx;
+          return {
+            id: id,
+            text: cleanedText,
+            done: existingDoneMap[cleanedText] || false
+          };
+        });
+    }
+
+    // Renderização das Abas
+    function renderTabs() {
+      workoutsTabsContainer.innerHTML = '';
+      workoutCountBadge.textContent = `${workouts.length} treino${workouts.length !== 1 ? 's' : ''}`;
+
+      if (workouts.length === 0) {
+        emptyGlobalState.classList.remove('hidden');
+        emptyGlobalState.classList.add('flex');
+        activeWorkoutView.classList.add('hidden');
+        return;
+      }
+
+      emptyGlobalState.classList.add('hidden');
+      emptyGlobalState.classList.remove('flex');
+      activeWorkoutView.classList.remove('hidden');
+
+      workouts.forEach(workout => {
+        const total = workout.exercises.length;
+        const doneCount = workout.exercises.filter(e => e.done).length;
+        const isActive = workout.id === activeWorkoutId;
+
+        const tabBtn = document.createElement('button');
+        tabBtn.className = `flex-shrink-0 snap-start px-3.5 py-2 rounded-xl text-left border transition-all duration-200 flex items-center gap-2.5 ${
+          isActive 
+            ? 'bg-gym-card border-gym-neon text-white pulse-neon' 
+            : 'bg-gym-dark/90 border-gym-border/70 text-slate-400 hover:text-slate-200 hover:border-gym-border'
+        }`;
+
+        tabBtn.innerHTML = `
+          <div class="w-2.5 h-2.5 rounded-full ${isActive ? 'bg-gym-neon animate-pulse' : (doneCount === total && total > 0 ? 'bg-cyan-400' : 'bg-slate-600')}"></div>
+          <div class="flex flex-col">
+            <span class="text-xs font-bold whitespace-nowrap">${workout.name}</span>
+            <span class="text-[10px] text-slate-400">${doneCount}/${total} feitos</span>
+          </div>
+        `;
+
+        tabBtn.addEventListener('click', () => {
+          activeWorkoutId = workout.id;
+          saveData();
+          renderApp();
+        });
+
+        workoutsTabsContainer.appendChild(tabBtn);
+      });
+    }
+
+    // Obter o treino ativo atual
+    function getActiveWorkout() {
+      return workouts.find(w => w.id === activeWorkoutId);
+    }
+
+    // Renderizar o Treino Ativo e Lista de Exercícios
+    function renderActiveWorkout() {
+      const workout = getActiveWorkout();
+      if (!workout) return;
+
+      activeWorkoutTitle.textContent = workout.name;
+      const total = workout.exercises.length;
+      const doneCount = workout.exercises.filter(e => e.done).length;
+      const pct = total === 0 ? 0 : Math.round((doneCount / total) * 100);
+
+      activeWorkoutDesc.textContent = `${total} exercício${total !== 1 ? 's' : ''} programado${total !== 1 ? 's' : ''}`;
+      progressText.textContent = `${doneCount} / ${total} (${pct}%)`;
+      progressBar.style.width = `${pct}%`;
+
+      // Atualiza próximo exercício da fila
+      const nextPending = workout.exercises.find(e => !e.done);
+      if (nextPending) {
+        nextExerciseHint.textContent = `Próximo: ${nextPending.text}`;
+      } else if (total > 0 && doneCount === total) {
+        nextExerciseHint.textContent = `🎉 Treino 100% Concluído! Parabéns!`;
+      } else {
+        nextExerciseHint.textContent = `Próximo: Nenhum na fila`;
+      }
+
+      // Container da Lista
+      exercisesListContainer.innerHTML = '';
+
+      if (total === 0) {
+        emptyExercisesState.classList.remove('hidden');
+        emptyExercisesState.classList.add('flex');
+        return;
+      }
+      emptyExercisesState.classList.add('hidden');
+      emptyExercisesState.classList.remove('flex');
+
+      let firstPendingFound = false;
+
+      workout.exercises.forEach((item, index) => {
+        const isNextInLine = !item.done && !firstPendingFound;
+        if (isNextInLine) firstPendingFound = true;
+
+        const itemCard = document.createElement('div');
+        itemCard.id = `exercise_card_${item.id}`;
+        itemCard.className = `exercise-item group rounded-xl p-3.5 border flex items-center justify-between gap-3 ${
+          item.done 
+            ? 'exercise-done' 
+            : isNextInLine 
+              ? 'exercise-active bg-gym-card/90' 
+              : 'bg-gym-card/70 border-gym-border hover:border-gym-border/80'
+        }`;
+
+        itemCard.innerHTML = `
+          <!-- Indicador Numérico & Texto -->
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <span class="w-6 h-6 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 ${
+              item.done 
+                ? 'bg-gym-black/40 text-slate-500' 
+                : isNextInLine 
+                  ? 'bg-gym-neon/20 text-gym-neon font-extrabold' 
+                  : 'bg-gym-black border border-gym-border/70 text-slate-400'
+            }">
+              ${index + 1}
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs sm:text-sm font-semibold tracking-tight leading-snug break-words ${
+                item.done ? 'line-through text-slate-400' : 'text-slate-100'
+              }">
+                ${item.text}
+              </p>
+              ${isNextInLine ? '<span class="inline-flex items-center gap-1 text-[10px] text-gym-neon font-bold uppercase tracking-wider mt-0.5"><i class="ph-bold ph-play"></i> Agora</span>' : ''}
+            </div>
+          </div>
+
+          <!-- Botão Check Gigante & Tátil para uso com uma mão -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button 
+              data-id="${item.id}" 
+              class="btn-toggle-check w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-200 active:scale-90 ${
+                item.done 
+                  ? 'bg-gym-neon text-gym-black pulse-neon shadow-lg font-black' 
+                  : 'bg-gym-black border-2 border-gym-border text-slate-600 hover:border-gym-neon/60 hover:text-gym-neon'
+              }"
+              aria-label="Marcar como concluído"
+            >
+              <i class="ph-bold ${item.done ? 'ph-check text-xl font-black' : 'ph-check text-lg opacity-40'}"></i>
+            </button>
+          </div>
+        `;
+
+        exercisesListContainer.appendChild(itemCard);
+      });
+
+      // Adiciona ouvintes nos botões de Check
+      document.querySelectorAll('.btn-toggle-check').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.getAttribute('data-id');
+          toggleExercise(id);
+        });
+      });
+    }
+
+    // Toggle Check do Exercício
+    function toggleExercise(exerciseId) {
+      const workout = getActiveWorkout();
+      if (!workout) return;
+
+      const exercise = workout.exercises.find(e => e.id === exerciseId);
+      if (!exercise) return;
+
+      exercise.done = !exercise.done;
+      saveData();
+
+      // Som tátil rápido
+      if (exercise.done) {
+        playBeep(520, 0.08, 'sine');
+        showToast('Exercício concluído! Descanse.', 'ph-check-circle', 'text-gym-neon');
+        
+        // Iniciar timer automaticamente para facilitar se não estiver rodando
+        if (!timerIsRunning && timerRemainingSeconds <= 0) {
+          timerRemainingSeconds = timerTotalSeconds;
+        }
+      } else {
+        playBeep(350, 0.06, 'sine');
+      }
+
+      renderApp();
+
+      // Rolar suavemente até o próximo exercício pendente
+      if (exercise.done) {
+        setTimeout(() => {
+          scrollToNextPending();
+        }, 120);
+      }
+    }
+
+    // Rola a tela até o próximo item pendente
+    function scrollToNextPending() {
+      const workout = getActiveWorkout();
+      if (!workout) return;
+      const nextPending = workout.exercises.find(e => !e.done);
+      if (nextPending) {
+        const el = document.getElementById(`exercise_card_${nextPending.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    }
+
+    // Render Geral do App
+    function renderApp() {
+      renderTabs();
+      renderActiveWorkout();
+    }
+
+    // Cronômetro / Timer de Descanso
+    function updateTimerDisplay() {
+      const mins = Math.floor(timerRemainingSeconds / 60);
+      const secs = timerRemainingSeconds % 60;
+      timerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function startTimer() {
+      if (timerRemainingSeconds <= 0) {
+        timerRemainingSeconds = timerTotalSeconds;
+      }
+      timerIsRunning = true;
+      timerPlayPauseIcon.className = 'ph-fill ph-pause';
+      btnToggleTimer.classList.add('pulse-cyan');
+
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (timerRemainingSeconds > 0) {
+          timerRemainingSeconds--;
+          updateTimerDisplay();
+
+          // Bipe suave nos últimos 3 segundos
+          if (timerRemainingSeconds > 0 && timerRemainingSeconds <= 3) {
+            playBeep(440, 0.08, 'triangle');
+          }
+
+          if (timerRemainingSeconds === 0) {
+            pauseTimer();
+            playAlarmSequence();
+            showToast('Hora da próxima série! Vamos!', 'ph-bell-ringing', 'text-cyan-400');
+          }
+        } else {
+          pauseTimer();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      timerIsRunning = false;
+      clearInterval(timerInterval);
+      timerPlayPauseIcon.className = 'ph-fill ph-play';
+      btnToggleTimer.classList.remove('pulse-cyan');
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      timerRemainingSeconds = timerTotalSeconds;
+      updateTimerDisplay();
+    }
+
+    btnToggleTimer.addEventListener('click', () => {
+      if (timerIsRunning) {
+        pauseTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    btnResetTimer.addEventListener('click', resetTimer);
+
+    presetTimerButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const secs = parseInt(btn.getAttribute('data-time'), 10);
+        timerTotalSeconds = secs;
+        timerRemainingSeconds = secs;
+        updateTimerDisplay();
+        startTimer();
+      });
+    });
+
+    // Modal de Edição / Importação
+    function openWorkoutModal(workoutToEdit = null) {
+      if (workoutToEdit) {
+        modalTitle.textContent = 'Editar / Colar Exercícios';
+        inputWorkoutId.value = workoutToEdit.id;
+        inputWorkoutName.value = workoutToEdit.name;
+        inputWorkoutRawText.value = workoutToEdit.exercises.map(e => e.text).join('\n');
+      } else {
+        modalTitle.textContent = 'Novo Treino';
+        inputWorkoutId.value = '';
+        inputWorkoutName.value = `Treino ${String.fromCharCode(65 + workouts.length)} - `;
+        inputWorkoutRawText.value = '';
+      }
+
+      modalWorkoutEditor.classList.remove('hidden');
+      setTimeout(() => {
+        modalWorkoutEditor.classList.remove('opacity-0');
+      }, 10);
+      inputWorkoutName.focus();
+    }
+
+    function closeWorkoutModal() {
+      modalWorkoutEditor.classList.add('opacity-0');
+      setTimeout(() => {
+        modalWorkoutEditor.classList.add('hidden');
+      }, 200);
+    }
+
+    btnOpenNewWorkoutModal.addEventListener('click', () => openWorkoutModal(null));
+    btnCreateFirstWorkout.addEventListener('click', () => openWorkoutModal(null));
+    btnCloseModal.addEventListener('click', closeWorkoutModal);
+    btnCancelModal.addEventListener('click', closeWorkoutModal);
+
+    btnQuickImportModal.addEventListener('click', () => {
+      const current = getActiveWorkout();
+      if (current) openWorkoutModal(current);
+    });
+
+    btnEmptyAdd.addEventListener('click', () => {
+      const current = getActiveWorkout();
+      if (current) openWorkoutModal(current);
+    });
+
+    // Colar da Área de Transferência (Clipboard API com fallback seguro)
+    btnPasteClipboard.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            inputWorkoutRawText.value = text;
+            showToast('Texto colado da área de transferência!', 'ph-clipboard-text');
+            return;
+          }
+        }
+      } catch (err) {
+        // Ignora ou pede foco manual
+      }
+      inputWorkoutRawText.focus();
+      showToast('Pressione e segure na caixa para colar', 'ph-cursor-text', 'text-amber-400');
+    });
+
+    // Salvar Treino
+    formWorkout.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const id = inputWorkoutId.value;
+      const name = inputWorkoutName.value.trim() || 'Meu Treino';
+      const rawText = inputWorkoutRawText.value;
+
+      if (id) {
+        // Editando existente: preserva status 'done' dos exercícios com mesmo texto
+        const current = workouts.find(w => w.id === id);
+        const doneMap = {};
+        if (current) {
+          current.exercises.forEach(ex => {
+            doneMap[ex.text] = ex.done;
+          });
+        }
+        const updatedExercises = parseRawTextToExercises(rawText, doneMap);
+        if (current) {
+          current.name = name;
+          current.exercises = updatedExercises;
+        }
+        showToast('Treino atualizado com sucesso!');
+      } else {
+        // Criando novo
+        const newId = 'workout_' + Date.now();
+        const exercises = parseRawTextToExercises(rawText);
+        workouts.push({
+          id: newId,
+          name: name,
+          exercises: exercises
+        });
+        activeWorkoutId = newId;
+        showToast('Treino criado com sucesso!');
+      }
+
+      saveData();
+      closeWorkoutModal();
+      renderApp();
+    });
+
+    // Excluir Treino Atual
+    btnDeleteWorkout.addEventListener('click', () => {
+      const current = getActiveWorkout();
+      if (!current) return;
+
+      // Mensagem visual rápida de confirmação sem alert()
+      const confirmDelete = window.confirm(`Deseja realmente apagar o treino "${current.name}"?`);
+      if (confirmDelete) {
+        workouts = workouts.filter(w => w.id !== current.id);
+        activeWorkoutId = workouts.length > 0 ? workouts[0].id : null;
+        saveData();
+        renderApp();
+        showToast('Treino removido', 'ph-trash', 'text-red-400');
+      }
+    });
+
+    // Resetar Checks do Treino Atual
+    btnResetAll.addEventListener('click', () => {
+      const current = getActiveWorkout();
+      if (!current) return;
+      current.exercises.forEach(e => e.done = false);
+      saveData();
+      renderApp();
+      showToast('Todos os checks foram reiniciados!');
+    });
+
+    // Concluir Treino
+    btnFinishWorkout.addEventListener('click', () => {
+      const current = getActiveWorkout();
+      if (!current) return;
+      current.exercises.forEach(e => e.done = true);
+      saveData();
+      renderApp();
+      playAlarmSequence();
+      showToast('Treino concluído com maestria! 🔥💪', 'ph-fire', 'text-amber-400');
+    });
+
+    // Focar no Próximo
+    btnScrollToNext.addEventListener('click', () => {
+      scrollToNextPending();
+    });
+
+    // Inicialização da Página
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      updateTimerDisplay();
+      renderApp();
+    });
+  </script>
+</body>
+</html>
